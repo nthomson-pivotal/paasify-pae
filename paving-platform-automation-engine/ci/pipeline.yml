@@ -1,0 +1,670 @@
+---
+resource_types:
+- name: terraform
+  type: docker-image
+  source:
+    repository: ljfranklin/terraform-resource
+    tag: 0.12.3
+
+- name: pivnet
+  type: docker-image
+  source:
+    repository: pivotalcf/pivnet-resource
+    tag: latest-final
+
+shared:
+- params: &om-creds
+    OM_USERNAME: ((om.username))
+    OM_PASSWORD: ((om.password))
+
+resources:
+- name: cf-infra-tracker
+  type: tracker
+  source:
+    token: ((cf_infra_tracker_token))
+    project_id: ((cf_infrastructure_tracker_id))
+    tracker_url: https://www.pivotaltracker.com
+
+- name: paving
+  type: git
+  source:
+    branch: master
+    uri: git@github.com:pivotal/paving-platform-automation-engine.git
+    private_key: ((paving_pae_deploy_key.private_key))
+    paths: [aws/*]
+
+- name: paving-release
+  type: github-release
+  source:
+    owner: pivotal
+    repository: paving-platform-automation-engine
+    access_token: ((cf-infra-bot-pivotal-cf-private-repos-token))
+    drafts: true
+
+- name: cp-ci
+  type: git
+  source:
+    uri: git@github.com:pivotal/platform-automation-engine-tile.git
+    branch: master
+    private_key: ((tile_deploy_key_read_only.private_key))
+    paths:
+    - ci/*
+    - config/*
+
+- name: version
+  type: semver
+  source:
+    driver: s3
+    bucket: terraforming
+    key: paving/version
+    access_key_id: ((aws_access_key_id))
+    secret_access_key: ((aws_secret_access_key))
+
+- name: env-state-aws
+  type: terraform
+  source:
+    backend_type: gcs
+    backend_config:
+      bucket: infra-tf-states
+      prefix: aws
+      credentials: ((cf_infra_gcp_service_account_key))
+    vars:
+      region: us-west-2
+      dns_suffix: aws.infrastructure.cf-app.com
+      top_level_zone_id: ((cf_infra_aws_top_level_zone))
+      secret_key: ((aws_secret_access_key))
+      access_key: ((aws_access_key_id))
+      availability_zones: ["us-west-2a", "us-west-2c"]
+
+- name: infrastructure-ci
+  type: git
+  source:
+    branch: master
+    uri: https://github.com/cloudfoundry/infrastructure-ci.git
+
+- name: pcf-releng-ci
+  type: git
+  source:
+    uri: git@github.com:pivotal-cf/pcf-releng-ci.git
+    private_key: ((cf_infra_bot_github_user.private_key))
+    ignore_paths:
+    - pipelines
+    - ci_screen
+
+- name: tile-release
+  type: pivnet
+  source:
+    api_token: ((pivnet_token))
+    product_slug: platform-automation-engine
+    product_version: ^\d+\.\d+\.\d+.*
+    sort_by: semver
+
+- name: opsmanager
+  type: pivnet
+  source:
+    product_slug: ops-manager
+    api_token: ((pivnet_token))
+    product_version: ^\d+\.\d+\.\d+
+    sort_by: semver
+
+- name: stemcell-pcf
+  type: pivnet
+  source:
+    product_slug: stemcells-ubuntu-xenial
+    api_token: ((pivnet_token))
+    # TODO unpin on next tile release
+    # product_version: ^\d+\.\d+
+    product_version: 315\.70
+    sort_by: semver
+
+- name: platform-automation
+  type: pivnet
+  source:
+    api_token: ((pivnet_token))
+    product_slug: platform-automation
+
+jobs:
+- name: deploy-tile-aws-open-network
+  serial: true
+  public: false
+  plan:
+  - in_parallel:
+    - get: paving
+      trigger: true
+    - get: cp-ci
+    - get: pcf-releng-ci
+    - get: ci
+      resource: infrastructure-ci
+    - get: opsman-image
+      resource: opsmanager
+      params:
+        globs:
+        - '*aws*.yml'
+    - get: stemcell-version
+      resource: stemcell-pcf
+      params:
+        globs:
+        - '*aws*.tgz'
+    - get: tile-release
+      params:
+        globs:
+        - '*.pivotal'
+    - get: version
+  - do:
+    - in_parallel:
+      - task: latest-opsman-ami
+        file: ci/scripts/terraforming/latest-opsman/task.yml
+        params:
+          IAAS: aws
+          KEY: us-west-2
+      - task: additional-buckets
+        file: cp-ci/ci/tasks/additional-buckets/task.yml
+        params:
+          IAAS: aws
+    - put: env-state-aws
+      params:
+        generate_random_name: true
+        override_files:
+        - terraform-overrides/platform_automation_bucket.tf
+        terraform_source: paving/aws/examples/open-network
+        delete_on_failure: true
+        var_files: [tfvars/terraform.yml]
+    - task: configure-authentication
+      file: cp-ci/ci/tasks/configure-authentication/task.yml
+      params:
+        <<: *om-creds
+      input_mapping:
+        env-state: env-state-aws
+    - task: configure-director-aws
+      file: ci/scripts/terraforming/configure-director/task.yml
+      params:
+        <<: *om-creds
+        TEMPLATE_PATH: director-config-template/ci/assets/aws-director-template.yml
+      input_mapping:
+        env-state: env-state-aws
+        director-config-template: cp-ci
+      on_failure:
+        do:
+        - put: env-state-aws
+          params:
+            env_name_file: env-state-aws/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+    - task: generate-certs
+      file: cp-ci/ci/tasks/generate-certs/task.yml
+      params:
+        <<: *om-creds
+      input_mapping:
+        env-state: env-state-aws
+      on_failure:
+        do:
+        - put: env-state-aws
+          params:
+            env_name_file: modified-env-state/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+    - task: add-automation-user
+      file: cp-ci/ci/tasks/add-automation-user/task.yml
+      input_mapping:
+        env-state: modified-env-state
+      params:
+        AUTOMATED_USERNAME: ((platform-automation-concourse.username))
+        AUTOMATED_SECRET: ((platform-automation-concourse.password_hash))
+    - task: download-stemcell
+      file: cp-ci/ci/tasks/download-stemcell/task.yml
+      params:
+        IAAS: aws
+      on_failure:
+        do:
+        - put: env-state-aws
+          params:
+            env_name_file: modified-env-state/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+    - task: configure-tile
+      file: ci/scripts/terraforming/upload-configure-stage/task.yml
+      params:
+        <<: *om-creds
+        PRODUCT_NAME: control-plane  # TODO: Update this once the control-plane-tile pipeline has been updated
+        PRODUCT_CONFIG_TEMPLATE: ci/assets/aws-product-template.yml
+      input_mapping:
+        product: tile-release
+        product-config-repo: cp-ci
+        env-state: modified-env-state
+      on_failure:
+        do:
+        - put: env-state-aws
+          params:
+            env_name_file: modified-env-state/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+    - task: apply-changes
+      file: ci/scripts/terraforming/apply-changes/task.yml
+      input_mapping:
+        env-state: modified-env-state
+      params:
+        <<: *om-creds
+      on_failure:
+        do:
+        - task: delete-installation
+          file: pcf-releng-ci/tasks/environment/delete-installation/task.yml
+          params:
+            OPSMAN_USERNAME: ((om.username))
+            OPSMAN_PASSWORD: ((om.password))
+            OPSMAN_URL_SUFFIX: aws.infrastructure.cf-app.com
+          input_mapping:
+            environment: env-state-aws
+        - put: env-state-aws
+          params:
+            env_name_file: env-state-aws/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+
+- name: run-platform-automation-aws-open-network
+  serial: true
+  public: false
+  plan:
+  - in_parallel:
+    - get: paving
+    - get: cp-ci
+    - get: pcf-releng-ci
+    - get: ci
+      resource: infrastructure-ci
+    - get: opsman-image
+      resource: opsmanager
+      params:
+        globs:
+        - '*aws*.yml'
+    - get: platform-automation
+    - get: env-state-aws
+      passed: [deploy-tile-aws-open-network]
+      trigger: true
+    - get: version
+      passed: [deploy-tile-aws-open-network]
+    - get: tile-release
+      params:
+        globs:
+        - '*.pivotal'
+      passed: [deploy-tile-aws-open-network]
+  - do:
+    - task: upload-platform-automation-to-s3
+      file: cp-ci/ci/tasks/upload-to-bucket/task.yml
+      params:
+        IAAS: aws
+      input_mapping:
+        env-state: env-state-aws
+    - task: boostrap-platform-automation-credhub
+      file: cp-ci/ci/tasks/bootstrap-credhub/task.yml
+      params:
+        <<: *om-creds
+        IAAS: aws
+      input_mapping:
+        env-state: env-state-aws
+    - task: validate-platform-automation
+      file: cp-ci/ci/tasks/validate-platform-automation/task.yml
+      input_mapping:
+        env-state: env-state-aws
+      params:
+        AUTOMATED_USERNAME: ((platform-automation-concourse.username))
+        AUTOMATED_USER_PASSWORD: ((platform-automation-concourse.password_hash))
+        IAAS: aws
+    ensure:
+      do:
+      - task: delete-installation
+        file: pcf-releng-ci/tasks/environment/delete-installation/task.yml
+        params:
+          OPSMAN_USERNAME: ((om.username))
+          OPSMAN_PASSWORD: ((om.password))
+          OPSMAN_URL_SUFFIX: aws.infrastructure.cf-app.com
+        input_mapping:
+          environment: env-state-aws
+      - task: latest-opsman-ami
+        file: ci/scripts/terraforming/latest-opsman/task.yml
+        params:
+          IAAS: aws
+          KEY: us-west-2
+      - task: additional-buckets
+        file: cp-ci/ci/tasks/additional-buckets/task.yml
+        params:
+          IAAS: aws
+      - put: env-state-aws
+        params:
+          env_name_file: env-state-aws/name
+          override_files:
+          - terraform-overrides/platform_automation_bucket.tf
+          terraform_source: paving/aws/examples/open-network
+          delete_on_failure: true
+          action: destroy
+          var_files: [tfvars/terraform.yml]
+        get_params:
+          action: destroy
+
+- name: deploy-tile-aws-egress-only
+  serial: true
+  public: false
+  plan:
+  - in_parallel:
+    - get: paving
+      trigger: true
+    - get: cp-ci
+    - get: pcf-releng-ci
+    - get: ci
+      resource: infrastructure-ci
+    - get: opsman-image
+      resource: opsmanager
+      params:
+        globs:
+        - '*aws*.yml'
+    - get: stemcell-version
+      resource: stemcell-pcf
+      params:
+        globs:
+        - '*aws*.tgz'
+    - get: tile-release
+      params:
+        globs:
+        - '*.pivotal'
+    - get: version
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs:
+        - "*image*"
+        unpack: true
+  - do:
+    - in_parallel:
+      - task: latest-opsman-ami
+        file: ci/scripts/terraforming/latest-opsman/task.yml
+        params:
+          IAAS: aws
+          KEY: us-west-2
+      - task: additional-buckets
+        file: cp-ci/ci/tasks/additional-buckets/task.yml
+        params:
+          IAAS: aws
+    - put: env-state-aws
+      params:
+        generate_random_name: true
+        override_files:
+        - terraform-overrides/platform_automation_bucket.tf
+        - paving/aws/addons/vpn.tf
+        terraform_source: paving/aws/examples/egress-only
+        delete_on_failure: true
+        var_files: [tfvars/terraform.yml]
+    - task: configure-authentication
+      privileged: true
+      file: cp-ci/ci/tasks/vpn/configure-authentication/task.yml
+      params:
+        <<: *om-creds
+      input_mapping:
+        env-state: env-state-aws
+    - task: configure-director-aws
+      privileged: true
+      file: cp-ci/ci/tasks/vpn/configure-director/task.yml
+      params:
+        <<: *om-creds
+        TEMPLATE_PATH: director-config-template/ci/assets/aws-director-template.yml
+      input_mapping:
+        env-state: env-state-aws
+        director-config-template: cp-ci
+      on_failure:
+        do:
+        - put: env-state-aws
+          params:
+            env_name_file: env-state-aws/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+    - task: generate-certs
+      file: cp-ci/ci/tasks/vpn/generate-certs/task.yml
+      params:
+        <<: *om-creds
+      input_mapping:
+        env-state: env-state-aws
+      on_failure:
+        do:
+        - put: env-state-aws
+          params:
+            env_name_file: modified-env-state/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+    - task: add-automation-user
+      privileged: true
+      file: cp-ci/ci/tasks/add-automation-user/task.yml
+      input_mapping:
+        env-state: modified-env-state
+      params:
+        AUTOMATED_USERNAME: ((platform-automation-concourse.username))
+        AUTOMATED_SECRET: ((platform-automation-concourse.password_hash))
+    - task: download-stemcell
+      file: cp-ci/ci/tasks/download-stemcell/task.yml
+      params:
+        IAAS: aws
+      on_failure:
+        do:
+        - put: env-state-aws
+          params:
+            env_name_file: modified-env-state/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+    - task: configure-tile
+      privileged: true
+      file: cp-ci/ci/tasks/vpn/upload-configure-stage/task.yml
+      params:
+        <<: *om-creds
+        PRODUCT_NAME: control-plane  # TODO: Update this once the control-plane-tile pipeline has been updated
+        PRODUCT_CONFIG_TEMPLATE: ci/assets/aws-product-template.yml
+      input_mapping:
+        product: tile-release
+        product-config-repo: cp-ci
+        env-state: modified-env-state
+      on_failure:
+        do:
+        - put: env-state-aws
+          params:
+            env_name_file: modified-env-state/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+    - task: apply-changes
+      privileged: true
+      file: cp-ci/ci/tasks/vpn/apply-changes/task.yml
+      input_mapping:
+        env-state: modified-env-state
+      params:
+        <<: *om-creds
+      on_failure:
+        do:
+        - task: delete-installation
+          file: pcf-releng-ci/tasks/environment/delete-installation/task.yml
+          params:
+            OPSMAN_USERNAME: ((om.username))
+            OPSMAN_PASSWORD: ((om.password))
+            OPSMAN_URL_SUFFIX: aws.infrastructure.cf-app.com
+          input_mapping:
+            environment: env-state-aws
+        - put: env-state-aws
+          params:
+            env_name_file: env-state-aws/name
+            override_files:
+            - terraform-overrides/platform_automation_bucket.tf
+            terraform_source: paving/aws/examples/open-network
+            delete_on_failure: true
+            action: destroy
+            var_files: [tfvars/terraform.yml]
+          get_params:
+            action: destroy
+
+- name: run-platform-automation-aws-egress-only
+  serial: true
+  public: false
+  plan:
+  - in_parallel:
+    - get: paving
+    - get: cp-ci
+    - get: pcf-releng-ci
+    - get: ci
+      resource: infrastructure-ci
+    - get: opsman-image
+      resource: opsmanager
+      params:
+        globs:
+        - '*aws*.yml'
+    - get: platform-automation
+    - get: env-state-aws
+      passed: [deploy-tile-aws-egress-only]
+      trigger: true
+    - get: version
+      passed: [deploy-tile-aws-egress-only]
+    - get: tile-release
+      params:
+        globs:
+        - '*.pivotal'
+      passed: [deploy-tile-aws-egress-only]
+  - do:
+    - task: upload-platform-automation-to-s3
+      file: cp-ci/ci/tasks/upload-to-bucket/task.yml
+      params:
+        IAAS: aws
+      input_mapping:
+        env-state: env-state-aws
+    - task: boostrap-platform-automation-credhub
+      file: cp-ci/ci/tasks/vpn/bootstrap-credhub/task.yml
+      params:
+        <<: *om-creds
+        IAAS: aws
+      input_mapping:
+        env-state: env-state-aws
+    - task: validate-platform-automation
+      file: cp-ci/ci/tasks/vpn/validate-platform-automation/task.yml
+      input_mapping:
+        env-state: env-state-aws
+      params:
+        AUTOMATED_USERNAME: ((platform-automation-concourse.username))
+        AUTOMATED_USER_PASSWORD: ((platform-automation-concourse.password_hash))
+        IAAS: aws
+    ensure:
+      do:
+      - task: delete-installation
+        file: pcf-releng-ci/tasks/environment/delete-installation/task.yml
+        params:
+          OPSMAN_USERNAME: ((om.username))
+          OPSMAN_PASSWORD: ((om.password))
+          OPSMAN_URL_SUFFIX: aws.infrastructure.cf-app.com
+        input_mapping:
+          environment: env-state-aws
+      - task: latest-opsman-ami
+        file: ci/scripts/terraforming/latest-opsman/task.yml
+        params:
+          IAAS: aws
+          KEY: us-west-2
+      - task: additional-buckets
+        file: cp-ci/ci/tasks/additional-buckets/task.yml
+        params:
+          IAAS: aws
+      - put: env-state-aws
+        params:
+          env_name_file: env-state-aws/name
+          override_files:
+          - terraform-overrides/platform_automation_bucket.tf
+          terraform_source: paving/aws/examples/open-network
+          delete_on_failure: true
+          action: destroy
+          var_files: [tfvars/terraform.yml]
+        get_params:
+          action: destroy
+
+- name: publish
+  serial: true
+  plan:
+  - in_parallel:
+    - get: paving
+      passed:
+      - run-platform-automation-aws-open-network
+      - run-platform-automation-aws-egress-only
+    - get: version
+      params:
+        bump: minor
+    - get: ci
+      resource: infrastructure-ci
+  - task: release
+    file: ci/scripts/terraforming/release/task.yml
+    params:
+      RELEASE_NAME: paving-platform-automation-engine
+    input_mapping:
+      terraforming: paving
+  - put: paving-release
+    params:
+      name: release/version
+      tag: release/version
+      commitish: release/commitish
+      globs:
+      - release/paving-*.tar.gz
+  - put: version
+    params:
+      bump: minor
+      file: version/version
+
+- name: deliver-stories
+  plan:
+  - get: paving
+    trigger: true
+    passed:
+    - run-platform-automation-aws-open-network
+    - run-platform-automation-aws-egress-only
+  - put: cf-infra-tracker
+    params:
+      repos:
+      - paving
