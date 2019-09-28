@@ -16,3 +16,8 @@ product-properties:
     value:
       cert_pem: ${tls_cert}
       private_key_pem: ${tls_private_key}
+  .properties.local_auth:
+    value:
+    - username: niall
+      password: 
+        secret: niall

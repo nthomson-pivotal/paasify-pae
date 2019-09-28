@@ -49,3 +49,11 @@ variable "provisioner_ssh_private_key" {
 variable "blocker" {
 
 }
+
+variable "control_plane_username" {
+  default = "admin"
+}
+
+variable "control_plane_password" {
+  default = ""
+}

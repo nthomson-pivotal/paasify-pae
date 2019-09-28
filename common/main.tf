@@ -1,3 +1,12 @@
+locals {
+  control_plane_password = "${var.control_plane_password == "" ? random_string.control_plane_password.result : var.control_plane_password}"
+}
+
+resource "random_string" "control_plane_password" {
+  length  = 8
+  special = false
+}
+
 data "template_file" "tile_configuration" {
   template = "${chomp(file("${path.module}/templates/config.yml"))}"
 
@@ -8,6 +17,9 @@ data "template_file" "tile_configuration" {
     plane_endpoint   = var.plane_endpoint
     credhub_endpoint = var.credhub_endpoint
     uaa_endpoint     = var.uaa_endpoint
+
+    control_plane_username = var.control_plane_username
+    control_plane_password = local.control_plane_password
 
     tls_cert         = "${jsonencode(var.tls_cert)}"
     tls_private_key  = "${jsonencode(var.tls_private_key)}"

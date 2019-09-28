@@ -23,3 +23,11 @@ variable "availability_zones" {
 variable "pivnet_token" {
   
 }
+
+variable "control_plane_username" {
+  default = "admin"
+}
+
+variable "control_plane_password" {
+  default = ""
+}
