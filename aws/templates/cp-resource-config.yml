@@ -1,0 +1,24 @@
+resource-config:
+  web:
+    instances: automatic
+    elb_names:
+    - alb:${web_target_group}
+    additional_vm_extensions:
+    - web_lb_security_groups
+    internet_connected: false
+  db:
+    instances: automatic
+    internet_connected: false
+  worker:
+    instances: automatic
+    internet_connected: true
+  credhub:
+    elb_names:
+    - alb:${credhub_target_group}
+    additional_vm_extensions:
+    - credhub_lb_security_groups
+  uaa:
+    elb_names:
+    - alb:${uaa_target_group}
+    additional_vm_extensions:
+    - uaa_lb_security_groups

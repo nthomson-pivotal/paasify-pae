@@ -1,0 +1,24 @@
+- type: replace  
+  path: /networks-configuration/networks/-
+  value:
+    name: cp
+    subnets: ${cp_subnets}
+
+- type: replace  
+  path: /vmextensions-configuration?
+  value:
+    - name: web_lb_security_groups
+      cloud_properties:
+        security_groups:
+        - ${env_name}-plane
+        - vms
+    - name: credhub_lb_security_groups
+      cloud_properties:
+        security_groups:
+        - ${env_name}-credhub
+        - vms
+    - name: uaa_lb_security_groups
+      cloud_properties:
+        security_groups:
+        - ${env_name}-uaa
+        - vms
