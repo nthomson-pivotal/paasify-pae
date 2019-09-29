@@ -29,6 +29,7 @@ module "paasify" {
   availability_zones = ["us-west-2a", "us-west-2b", "us-west-2c"]  # Pick AZs within the above region
 }
 
+# Do not modify below here
 output "opsman_url" {
   value = "https://${module.paasify.opsman_host}"
 }
