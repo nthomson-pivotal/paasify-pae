@@ -18,6 +18,6 @@ product-properties:
       private_key_pem: ${tls_private_key}
   .properties.local_auth:
     value:
-    - username: niall
+    - username: ${control_plane_username}
       password: 
-        secret: niall
+        secret: ${control_plane_password}

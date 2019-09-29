@@ -117,6 +117,9 @@ module "common" {
   tls_cert         = module.setup_director.cert_full_chain
   tls_private_key  = module.setup_director.cert_key
 
+  control_plane_username = var.control_plane_username
+  control_plane_password = var.control_plane_password
+
   provisioner_host            = module.setup_director.provisioner_host
   provisioner_ssh_username    = module.setup_director.provisioner_ssh_username
   provisioner_ssh_private_key = module.setup_director.provisioner_ssh_private_key
