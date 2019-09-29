@@ -11,7 +11,68 @@ During an installation, the configuration in this project will:
 
 The only local prerequisite is Terraform 0.12, as all other operations are executed on a remote staging jumpbox that is built as part of the installation. This means the download and upload of tiles is quicker, and is not limited by the network connectivity of the machine on which the Terraform is executed.
 
-## Usage
+## Quick Start
+
+You must have Terraform 0.12 installed to proceed.
+
+Create a file named `main.tf` will the following contents:
+
+```
+module "paasify" {
+  source       = "https://github.com/nthomson-pivotal/paasify-pae//aws"
+
+  env_name           = "cp"
+  dns_suffix         = "<fill>" # An existing Route53 hosted zone domain
+  pivnet_token       = "<fill>" # Your Pivotal Network API token
+
+  region             = "us-west-2"   # Pick an AWS region
+  availability_zones = ["us-west-2a", "us-west-2b", "us-west-2c"]  # Pick AZs within the above region
+}
+
+output "opsman_url" {
+  value = "https://${module.paasify.opsman_host}"
+}
+
+output "opsman_username" {
+  value = module.paasify.opsman_username
+}
+
+output "opsman_password" {
+  value = module.paasify.opsman_password
+}
+
+output "cp_url" {
+  value = "https://${module.paasify.control_plane_domain}"
+}
+
+output "cp_username" {
+  value = module.paasify.control_plane_username
+}
+
+output "cp_password" {
+  value = module.paasify.control_plane_password
+}
+```
+
+Import the required Terraform modules by running:
+
+```
+terraform init
+```
+
+Now generate a plan to get an idea that things will work as intended;
+
+```
+terraform plan
+```
+
+Finally, apply the configuration to build the system:
+
+```
+terraform apply
+```
+
+The build will take about 30 minutes to complete.
 
 ## Cleaning Up
 
