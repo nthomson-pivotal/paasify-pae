@@ -72,7 +72,22 @@ Finally, apply the configuration to build the system:
 terraform apply
 ```
 
-The build will take about 30 minutes to complete.
+The build will take about 30 minutes to complete. When complete, the Terraform outputs will contain details to access the environment, for example:
+
+```
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+cp_password = lDsNGhDG
+cp_url = https://plane.cp.aws.paasify.org
+cp_username = admin
+opsman_password = XiI9J98t
+opsman_url = https://pcf.cp.aws.paasify.org
+opsman_username = admin
+```
+
+You can access the `cp_url` URL in your browser to login to Concourse, using `cp_username` and `cp_password` as the credentials.
 
 ## Cleaning Up
 
