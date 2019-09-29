@@ -19,7 +19,7 @@ Create a file named `main.tf` will the following contents:
 
 ```
 module "paasify" {
-  source       = "https://github.com/nthomson-pivotal/paasify-pae//aws"
+  source       = "github.com/nthomson-pivotal/paasify-pae/aws"
 
   env_name           = "cp"   # Name your environment, but try to keep it short
   dns_suffix         = "<fill>" # An existing Route53 hosted zone domain
