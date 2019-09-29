@@ -14,9 +14,7 @@ The only local prerequisite is Terraform 0.12, as all other operations are execu
 ## Quick Start
 
 You must have Terraform 0.12 installed to proceed.
-copy `.envrc-example` to `.envrc` and tune it.
-source this to set some AWS auth environment variables.
-`source .envrc` # or install [direnv](https://direnv.net/)
+
 Create a file named `main.tf` with the following contents:
 
 ```
