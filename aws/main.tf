@@ -116,6 +116,7 @@ module "common" {
 
   tls_cert         = module.setup_director.cert_full_chain
   tls_private_key  = module.setup_director.cert_key
+  tls_ca_cert      = module.setup_director.cert_ca
 
   control_plane_username = var.control_plane_username
   control_plane_password = var.control_plane_password

@@ -30,6 +30,10 @@ variable "tls_private_key" {
 
 }
 
+variable "tls_ca_cert" {
+    
+}
+
 variable "additional_config" {
   default = ""
 }

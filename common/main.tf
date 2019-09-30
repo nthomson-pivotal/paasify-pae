@@ -23,6 +23,7 @@ data "template_file" "tile_configuration" {
 
     tls_cert         = "${jsonencode(var.tls_cert)}"
     tls_private_key  = "${jsonencode(var.tls_private_key)}"
+    tls_ca_cert      = "${jsonencode(var.tls_ca_cert)}"
   }
 }
 
@@ -50,4 +51,26 @@ module "apply_changes" {
   provisioner_ssh_private_key = var.provisioner_ssh_private_key
 
   blocker       = module.control_plane.blocker
+}
+
+data "template_file" "setup_concourse_script" {
+  template = "${chomp(file("${path.module}/templates/setup_concourse.sh"))}"
+
+  vars = {
+    credhub_url      = "https://${var.credhub_endpoint}"
+    credhub_ca_cert  = var.tls_ca_cert
+  }
+}
+
+module "setup_concourse" {
+  name   = "setup_concourse"
+  script = data.template_file.setup_concourse_script.rendered
+
+  source = "github.com/nthomson-pivotal/paasify-core//run-script"
+
+  provisioner_host            = var.provisioner_host
+  provisioner_ssh_username    = var.provisioner_ssh_username
+  provisioner_ssh_private_key = var.provisioner_ssh_private_key
+
+  blocker       = module.apply_changes.blocker
 }
