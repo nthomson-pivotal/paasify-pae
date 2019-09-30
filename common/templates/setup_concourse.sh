@@ -20,7 +20,10 @@ EOF
 credhub_client=$(om credentials -p control-plane -c .uaa.credhub_admin_client_credentials -t json | jq -r '.identity')
 credhub_secret=$(om credentials -p control-plane -c .uaa.credhub_admin_client_credentials -t json | jq -r '.password')
 
-credhub login --client-name $credhub_client --client-secret $credhub_secret -s $credhub_url --ca-cert /home/ubuntu/credhub-ca-cert.pem
+export CREDHUB_SERVER=$credhub_url
+export CREDHUB_CLIENT=$credhub_client
+export CREDHUB_SECRET=$credhub_secret
+export CREDHUB_CA_CERT=~/credhub-ca-cert.pem
 
 # Add credhub URL and creds to itself
 credhub set -n /concourse/main/credhub_url -t value -v $credhub_url
