@@ -52,16 +52,6 @@ EOL
 
 }
 
-variable "top_level_zone_id" {
-  type = string
-
-  description = <<-EOL
-  Top level hosted zone that we are going to wire NS records
-  This allows a zone to be delegated to, so the top level zone doesn't get polluted with more route entries.
-EOL
-
-}
-
 /**************
 * Ops Manager *
 ***************/

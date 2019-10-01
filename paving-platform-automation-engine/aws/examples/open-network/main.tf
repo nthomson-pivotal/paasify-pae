@@ -220,14 +220,3 @@ resource "aws_route53_zone" "hosted_zone" {
     },
   )
 }
-
-resource "aws_route53_record" "name_servers" {
-  zone_id = var.top_level_zone_id
-  name    = local.root_domain
-
-  type = "NS"
-  ttl  = 60
-
-  records = aws_route53_zone.hosted_zone.name_servers
-}
-

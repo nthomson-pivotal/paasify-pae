@@ -26,7 +26,6 @@ module "infra" {
   region             = var.region
   availability_zones = var.availability_zones
   vpc_cidr           = var.vpc_cidr
-  top_level_zone_id  = data.aws_route53_zone.selected.zone_id
 
   ops_manager_ami    = module.opsman_image.ami_id
 }
