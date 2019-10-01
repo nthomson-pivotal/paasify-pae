@@ -25,12 +25,16 @@ export CREDHUB_CLIENT=$credhub_client
 export CREDHUB_SECRET=$credhub_secret
 export CREDHUB_CA_CERT=~/credhub-ca-cert.pem
 
-# Add credhub URL and creds to itself
+# Add stuff to credhub
+# Pivnet token
+credhub set -n /concourse/main/pivnet_token -t value -v $pivnet_token
+
+# Credhub to itself
 credhub set -n /concourse/main/credhub_url -t value -v $credhub_url
 credhub set -n /concourse/main/credhub_client -t user -z $credhub_client -w $credhub_secret
 credhub set -n /concourse/main/credhub_ca_cert -t certificate -c $CREDHUB_CA_CERT
 
-# Add S3 information
+# S3 buckets
 credhub set -n /concourse/main/s3_access_key_id -t value -v $control_plane_s3_access_key_id
 credhub set -n /concourse/main/s3_secret_access-key -t value -v $control_plane_s3_secret_access_key
 
