@@ -21,3 +21,15 @@ output "control_plane_username" {
 output "control_plane_password" {
   value = module.common.control_plane_password
 }
+
+output "provisioner_host" {
+  value = module.setup_director.provisioner_host
+}
+
+output "provisioner_ssh_username" {
+  value = module.setup_director.provisioner_ssh_username
+}
+
+output "provisioner_ssh_private_key" {
+  value = module.setup_director.provisioner_ssh_private_key
+}
