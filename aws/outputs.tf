@@ -22,6 +22,10 @@ output "control_plane_password" {
   value = module.common.control_plane_password
 }
 
+output "control_plane_ca_cert" {
+  value = module.setup_director.cert_ca
+}
+
 output "provisioner_host" {
   value = module.setup_director.provisioner_host
 }
