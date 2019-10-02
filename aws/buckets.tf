@@ -7,6 +7,10 @@ resource "random_string" "control_plane_bucket_suffix" {
 resource "aws_s3_bucket" "control_plane_artifacts" {
   bucket = "paasify-${var.env_name}-pae-artifacts-${random_string.control_plane_bucket_suffix.result}"
   acl    = "private"
+
+  versioning {
+    enabled = true
+  }
 }
 
 resource "aws_s3_bucket" "control_plane_exports" {
