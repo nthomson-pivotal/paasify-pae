@@ -31,7 +31,7 @@ module "control_plane" {
   source = "github.com/nthomson-pivotal/paasify-core//opsmanager-tile"
 
   slug         = "platform-automation-engine"
-  tile_version = "1.0.2-beta.1"
+  tile_version = "1.0.3-beta.1"
   om_product   = "control-plane"
   iaas         = var.iaas
   config       = "${data.template_file.tile_configuration.rendered}\n\n${var.additional_config}"

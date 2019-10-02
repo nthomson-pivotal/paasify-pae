@@ -99,13 +99,16 @@ module "setup_director" {
   additional_cert_domains     = [local.plane_endpoint, local.credhub_endpoint, local.uaa_endpoint]
 
   secrets = {
+    admin_access_key_id                = aws_iam_access_key.key.id
+    admin_secret_access_key            = aws_iam_access_key.key.secret
     pivnet_token                       = var.pivnet_token
-    control_plane_s3_endpoint          = "https://${aws_s3_bucket.control_plane_artifacts.bucket_regional_domain_name}"
+    control_plane_s3_endpoint          = "https://s3.${aws_s3_bucket.control_plane_artifacts.region}.amazonaws.com"
     control_plane_s3_region            = aws_s3_bucket.control_plane_artifacts.region
     control_plane_s3_access_key_id     = aws_iam_access_key.control_plane_bucket.id
     control_plane_s3_secret_access_key = aws_iam_access_key.control_plane_bucket.secret
     control_plane_s3_artifact_bucket   = aws_s3_bucket.control_plane_artifacts.bucket
     control_plane_s3_exports_bucket    = aws_s3_bucket.control_plane_exports.bucket
+    git_private_key                    = var.git_private_key
   }
 
   blocker                     = null_resource.infra_blocker.id

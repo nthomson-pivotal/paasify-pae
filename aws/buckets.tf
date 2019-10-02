@@ -33,7 +33,7 @@ resource "aws_iam_user_policy" "control_plane_bucket" {
         {
             "Sid": "ListObjectsInBucket",
             "Effect": "Allow",
-            "Action": ["s3:ListBucket"],
+            "Action": ["s3:ListBucket","s3:ListBucketVersions","s3:GetBucketVersioning"],
             "Resource": [
                 "arn:aws:s3:::${aws_s3_bucket.control_plane_artifacts.bucket}",
                 "arn:aws:s3:::${aws_s3_bucket.control_plane_exports.bucket}"
@@ -42,7 +42,7 @@ resource "aws_iam_user_policy" "control_plane_bucket" {
         {
             "Sid": "AllObjectActions",
             "Effect": "Allow",
-            "Action": "s3:*Object",
+            "Action": "*",
             "Resource": [
                 "arn:aws:s3:::${aws_s3_bucket.control_plane_artifacts.bucket}/*",
                 "arn:aws:s3:::${aws_s3_bucket.control_plane_exports.bucket}/*"

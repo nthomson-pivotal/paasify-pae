@@ -31,3 +31,7 @@ variable "control_plane_username" {
 variable "control_plane_password" {
   default = ""
 }
+
+variable "git_private_key" {
+  default = ""
+}
