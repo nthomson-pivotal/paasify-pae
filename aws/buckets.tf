@@ -11,11 +11,15 @@ resource "aws_s3_bucket" "control_plane_artifacts" {
   versioning {
     enabled = true
   }
+
+  force_destroy = true
 }
 
 resource "aws_s3_bucket" "control_plane_exports" {
   bucket = "paasify-${var.env_name}-pae-exports-${random_string.control_plane_bucket_suffix.result}"
   acl    = "private"
+
+  force_destroy = true
 }
 
 resource "aws_iam_user" "control_plane_bucket" {
