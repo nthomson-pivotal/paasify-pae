@@ -49,5 +49,6 @@ credhub set -n /concourse/main/s3_artifact_bucket -t value -v $control_plane_s3_
 credhub set -n /concourse/main/s3_exports_bucket -t value -v $control_plane_s3_exports_bucket
 
 if [ ! -z $git_private_key ]; then
-  credhub set -n /concourse/main/git_private_key -t ssh -p "$git_private_key"
+  decoded_private_key=$(echo $git_private_key | base64 -d)
+  credhub set -n /concourse/main/git_private_key -t ssh -p "$decoded_private_key"
 fi

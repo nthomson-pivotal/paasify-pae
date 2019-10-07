@@ -35,3 +35,7 @@ variable "control_plane_password" {
 variable "git_private_key" {
   default = ""
 }
+
+variable "ops_manager_instance_type" {
+  default = "r4.large"
+}

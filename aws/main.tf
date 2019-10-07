@@ -28,7 +28,8 @@ module "infra" {
   vpc_cidr           = var.vpc_cidr
   top_level_zone_id  = data.aws_route53_zone.selected.zone_id
 
-  ops_manager_ami    = module.opsman_image.ami_id
+  ops_manager_ami           = module.opsman_image.ami_id
+  ops_manager_instance_type = var.ops_manager_instance_type
 }
 
 resource "null_resource" "infra_blocker" {
@@ -108,7 +109,7 @@ module "setup_director" {
     control_plane_s3_secret_access_key = aws_iam_access_key.control_plane_bucket.secret
     control_plane_s3_artifact_bucket   = aws_s3_bucket.control_plane_artifacts.bucket
     control_plane_s3_exports_bucket    = aws_s3_bucket.control_plane_exports.bucket
-    git_private_key                    = var.git_private_key
+    git_private_key                    = base64encode(var.git_private_key)
   }
 
   blocker                     = null_resource.infra_blocker.id
